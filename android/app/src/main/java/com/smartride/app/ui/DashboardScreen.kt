@@ -474,16 +474,17 @@ private fun RideRow(ride: RideEntity, selected: Boolean, th: AppTheme, onClick: 
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     RidePill(Format.date(ride.startEpoch), true, th)
                     RidePill("${Format.time(ride.startEpoch)} - ${Format.time(ride.endEpoch)}", true, th)
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Wraps instead of squeezing: the row can hold up to four pills.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     RidePill("${Format.km(ride.distanceM, 1)} km", true, th)
                     RidePill("avg %.0f km/h".format(ride.avgSpeedKmh), false, th)
                     RidePill("max %.0f km/h".format(ride.maxSpeedKmh), false, th)
-                    if (ride.crashCount > 0) RidePill("⚠ ${ride.crashCount} alert", false, th)
+                    if (ride.crashCount > 0) RidePill("⚠ ${ride.crashCount}", false, th)
                 }
             }
             Text(Format.duration(ride.durationS), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = th.textMain.toColor())
