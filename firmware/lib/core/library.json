@@ -1,0 +1,6 @@
+{
+  "name": "smartride-core",
+  "version": "0.1.0",
+  "description": "Hardware-independent SmartRide logic: ride statistics, crash rule, ride-log store",
+  "build": { "includeDir": "src" }
+}
