@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Lint suggests merging into mipmap-anydpi since minSdk is 26, but AAPT (AGP 9.4)
+         then fails to resolve @mipmap/ic_launcher. Keep the -v26 qualifier. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</lint>

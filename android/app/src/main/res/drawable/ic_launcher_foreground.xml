@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SmartRide mark: a winding route ending in a location pin. 108dp adaptive canvas, art in the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#00000000" android:strokeColor="#FF7C8DB5" android:strokeWidth="5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M30,76 C30,60 50,66 54,56 C58,46 40,44 44,36" />
+    <path android:fillColor="#FFC8956C"
+        android:pathData="M66,30 C59.4,30 54,35.4 54,42 C54,51 66,64 66,64 C66,64 78,51 78,42 C78,35.4 72.6,30 66,30 Z" />
+    <path android:fillColor="#FF10131A" android:pathData="M66,42 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path android:fillColor="#FF7C8DB5" android:pathData="M30,76 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+</vector>

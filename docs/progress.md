@@ -26,15 +26,21 @@ Legend: ✅ implemented and verified · 🟡 implemented against simulated input
 
 ## Android app
 
-| Component | Status |
-|---|---|
-| Repo import, vendor code and assets removed, package `com.smartride.app` | ⏳ in progress |
-| BLE client (scan by service, MTU, serialised GATT queue, auto-reconnect) | ⏳ |
-| Live dashboard from LIVE | ⏳ |
-| Ride-log sync into Room (SQLite) + history + route map (OpenStreetMap) | ⏳ |
-| Crash alert with countdown + cancel | ⏳ |
-| Distance-based maintenance reminder | ⏳ |
-| Emergency contact notification (SMS) | ⏳ |
+| Component | Status | Evidence |
+|---|---|---|
+| Vendor code and assets removed; package `com.smartride.app`; no API keys | ✅ | `tools/check-clean.ps1` passes; lint clean |
+| BLE client: scan by service UUID, MTU 247, serialised GATT queue, auto-reconnect | ✅ | `ble/SmartRideBleClient.kt` |
+| Protocol parsers + CRC, cross-checked against independent Python vectors | ✅ | `SmartRideProtocolTest` (8 tests) |
+| Live dashboard: speed, ride distance and time, GNSS, simulated-data badge | ✅ | `ui/DashboardScreen.kt` |
+| Ride-log sync into Room (SQLite), de-duplicated, verified, acked | ✅ | `RideRepository`, `RideLogAssemblerTest` (5 tests) |
+| Ride history, route map (OpenStreetMap) with speed colouring and replay | ✅ | `ui/Maps.kt` |
+| Distance-by-day and time-of-day charts | ✅ | `AnalyticsTest` (5 tests) |
+| Crash alert: countdown, rider cancel, cancel relayed to the unit, events logged | ✅ | `ui/CrashAlertOverlay.kt` |
+| Distance-based maintenance reminder | ✅ | dashboard + settings |
+| Offline demo ride source (no hardware) | ✅ 🟡 | `DemoRideLogSource` |
+| End-to-end test on a phone against the unit | ⏳ | protocol verified laptop ↔ ESP32 with `tools/ble_client.py`; app not yet run on a phone |
+| Emergency SMS to contact | ⏳ | escalation screen shows and logs what would be sent |
+| BLE bonding, background operation | ⏳ | |
 
 ## Changes from the Phase 1 report
 

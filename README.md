@@ -55,9 +55,13 @@ tools/.venv/Scripts/python tools/ble_client.py logs      # sync and CRC-verify a
 
 ## Status (v0.1)
 
-The BLE protocol, ride statistics, crash state machine and ride-log transfer are implemented,
-unit-tested and running on the ESP32-S3. GNSS and IMU input are **simulated** along a real road
-route near the college until the sensors are fitted. Full table: [docs/progress.md](docs/progress.md).
+- **Firmware:** the BLE protocol, ride statistics, crash state machine and ride-log transfer are
+  implemented, unit-tested (14 tests on the board) and running on the ESP32-S3. GNSS and IMU
+  input are **simulated** along a real road route near the college until the sensors are fitted.
+- **App:** live dashboard, ride-log sync into SQLite, OpenStreetMap route history with replay,
+  charts, crash alert with countdown and maintenance reminder. 18 JVM tests, lint clean.
+
+Full table: [docs/progress.md](docs/progress.md).
 
 ## Team
 
