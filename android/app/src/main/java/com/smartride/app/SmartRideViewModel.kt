@@ -101,10 +101,14 @@ class SmartRideViewModel(app: Application) : AndroidViewModel(app) {
             selectedRideId.flatMapLatest { id -> if (id == null) emptyFlow() else c.repository.route(id) }
                 .collect { pts -> _ui.update { it.copy(selectedRoute = pts, replayIndex = 0) } }
         }
-        // A ride that just ended on the unit becomes a log: pull it.
+        // A ride that just ended on the unit becomes a log: pull it. Only on a real
+        // active -> idle transition; connecting to an idle unit is covered by `ready`.
         viewModelScope.launch {
+            var wasActive: Boolean? = null
             c.ble.live.map { it?.rideActive }.distinctUntilChanged().collect { active ->
-                if (active == false && _ui.value.connection.isReady && _ui.value.sync !is SyncStatus.Running) {
+                val ended = wasActive == true && active == false
+                wasActive = active
+                if (ended && _ui.value.connection.isReady) {
                     delay(1_500)
                     sync(c.deviceLogs)
                 }
