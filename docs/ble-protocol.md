@@ -64,6 +64,7 @@ Each characteristic has a `0x2901` User Description descriptor.
 | 3 | SIMULATED | data comes from the simulator, not real sensors. **Show it in the UI** |
 | 4 | CRASH_PENDING | a confirmed crash has not been cancelled yet |
 | 5 | TIME_SYNCED | device clock was set (SET_TIME or GNSS) |
+| 6 | BATTERY_CHARGING | unit battery is charging (charger status pin; simulated while not wired) |
 
 ## CRASH — 16 bytes
 

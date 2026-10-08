@@ -36,6 +36,7 @@ enum LiveFlags : uint8_t {
     LIVE_SIMULATED    = 1 << 3,  // data comes from the simulator, not real sensors
     LIVE_CRASH_PENDING= 1 << 4,
     LIVE_TIME_SYNCED  = 1 << 5,  // device clock was set by SET_TIME (or GNSS)
+    LIVE_BATTERY_CHARGING = 1 << 6,  // unit battery is being charged
 };
 
 struct __attribute__((packed)) LivePacket {

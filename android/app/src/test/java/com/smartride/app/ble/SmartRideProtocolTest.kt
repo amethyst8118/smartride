@@ -35,6 +35,9 @@ class SmartRideProtocolTest {
         val p = SmartRideProtocol.parseLive(hex("012f09556c0bf00f73020000630000000e635c052a3db72d"))!!
         assertEquals(85, p.batteryPct)
         assertEquals(4080, p.batteryMv)
+        assertFalse(p.batteryCharging)
+        // same packet with the charging bit (0x40) set
+        assertTrue(SmartRideProtocol.parseLive(hex("016f09556c0bf00f73020000630000000e635c052a3db72d"))!!.batteryCharging)
     }
 
     @Test fun `rejects short LIVE packet and tolerates longer one`() {

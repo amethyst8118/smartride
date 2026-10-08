@@ -227,7 +227,8 @@ void test_route_keeps_speed_changes() {
     GnssFix out;
     for (int i = 0; i <= 30; ++i) if (r.add(fixAt(i * 1000, i * 5.0, i < 15 ? 15.f : 40.f), out)) ++kept;
     if (r.flush(out)) ++kept;
-    TEST_ASSERT_EQUAL(3, kept);  // start, the fix before the speed jump, end
+    // start, last fix before the jump, first fix after it (pins the colour boundary), end
+    TEST_ASSERT_EQUAL(4, kept);
 }
 
 void test_route_curve_within_tolerance() {

@@ -77,6 +77,7 @@ class SmartRideViewModel(app: Application) : AndroidViewModel(app) {
     private val selectedRideId = MutableStateFlow<Long?>(null)
     private var countdownJob: Job? = null
     private var lastCancelMs = 0L
+    private var lastTrailMs = 0L
 
     init {
         viewModelScope.launch { c.settings.settings.collect { s -> _ui.update { it.copy(settings = s) } } }
@@ -123,11 +124,19 @@ class SmartRideViewModel(app: Application) : AndroidViewModel(app) {
             if (p == null) return@update s.copy(live = null)
             var trail = s.liveTrail
             val prev = s.live
-            if (prev != null && p.rideActive && prev.rideActive && p.rideDistanceM < prev.rideDistanceM) trail = emptyList()  // new ride
+            val newRide = p.rideActive && (prev?.rideActive != true || p.rideDistanceM < prev.rideDistanceM)
+            if (newRide) trail = emptyList()
             if (p.rideActive && p.gnssFix && p.hasPosition) {
                 val pt = RoutePoint(p.lat, p.lon, p.speedKmh)
+                val now = System.currentTimeMillis()
                 val last = trail.lastOrNull()
-                if (last == null || com.smartride.app.data.Geo.distanceM(last, pt) > 5) trail = (trail + pt).takeLast(3000)
+                val step = last?.let { com.smartride.app.data.Geo.distanceM(it, pt) } ?: Double.MAX_VALUE
+                // Defence in depth: never draw a jump no two-wheeler could make (> 160 km/h).
+                val implied = if (last == null) 0.0 else step / ((now - lastTrailMs).coerceAtLeast(500) / 1000.0) * 3.6
+                if (last == null || (step > 5 && implied <= 160.0)) {
+                    trail = (trail + pt).takeLast(3000)
+                    lastTrailMs = now
+                }
             }
             s.copy(live = p, liveTrail = trail)
         }

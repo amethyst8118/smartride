@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -267,14 +268,14 @@ private fun BatteryCard(live: LivePacket?, th: AppTheme, modifier: Modifier = Mo
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Text(
-                when {
-                    live == null -> "Unit not connected"
-                    live.batteryMv == null -> "Not measured"
-                    else -> "%.2f V · on-board unit".format(live.batteryMv / 1000.0)
-                },
-                fontSize = 10.sp, fontWeight = FontWeight.Medium, color = th.textMuted.toColor(),
-            )
+            val (status, statusColor) = when {
+                live == null -> "Not connected" to th.textMuted.toColor()
+                pct == null -> "Not measured" to th.textMuted.toColor()
+                live.batteryCharging && pct >= 99 -> "Fully charged" to ColorOk
+                live.batteryCharging -> "⚡ Charging" to ColorOk
+                else -> "Discharging" to th.textMuted.toColor()
+            }
+            Text(status, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = statusColor)
         }
     }
 }
@@ -400,7 +401,7 @@ private fun LiveMapPanel(s: UiState, th: AppTheme) {
     val live = s.live ?: return
     Box(Modifier.fillMaxWidth().frostedGlassPanel(th, radius = 24f)) {
         Column(Modifier.padding(16.dp)) {
-            PanelHeader("Live position", if (live.rideActive) "${s.liveTrail.size} points this session" else "not recording", th)
+            PanelHeader("Live position", if (live.rideActive) "Recording" else "Not recording", th)
             Spacer(Modifier.height(12.dp))
             RouteMap(
                 path = s.liveTrail.map { MapPoint(it.lat, it.lon, it.speedKmh) },
@@ -456,7 +457,7 @@ private fun ChartsSection(s: UiState, th: AppTheme) {
 private fun HistoryAndDetails(s: UiState, th: AppTheme, vm: SmartRideViewModel) {
     Box(Modifier.fillMaxWidth().frostedGlassPanel(th)) {
         Column(Modifier.padding(16.dp)) {
-            PanelHeader("Ride history", "${s.rides.size} rides stored", th)
+            PanelHeader("Ride history", "${s.rides.size} ride${if (s.rides.size == 1) "" else "s"}", th)
             Spacer(Modifier.height(12.dp))
             if (s.rides.isEmpty()) {
                 Text(
@@ -491,7 +492,7 @@ private fun HistoryAndDetails(s: UiState, th: AppTheme, vm: SmartRideViewModel) 
         val ride = s.selectedRide ?: return@AnimatedVisibility
         Box(Modifier.fillMaxWidth().frostedGlassPanel(th)) {
             Column(Modifier.padding(16.dp)) {
-                PanelHeader("Ride details", "${Format.date(ride.startEpoch)} · ${ride.sourceLabel}", th)
+                PanelHeader("Ride details", Format.dayDate(ride.startEpoch), th)
                 Spacer(Modifier.height(14.dp))
                 RideDetails(ride, s, th, vm)
             }
@@ -503,26 +504,41 @@ private fun HistoryAndDetails(s: UiState, th: AppTheme, vm: SmartRideViewModel) 
 private fun RideRow(ride: RideEntity, selected: Boolean, th: AppTheme, onClick: () -> Unit) {
     val bg by animateColorAsState(if (selected) th.accent.toColor().copy(alpha = 0.15f) else th.panelSoft.toColor().copy(alpha = 0.25f), label = "rowBg")
     val border by animateColorAsState(if (selected) th.accent.toColor().copy(alpha = 0.4f) else th.border.toColor().copy(alpha = 0.06f), label = "rowBorder")
-    Box(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).background(bg, RoundedCornerShape(16.dp))
-            .border(0.5.dp, border, RoundedCornerShape(16.dp)).padding(12.dp),
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(RoundedCornerShape(16.dp))
+            .background(bg).border(0.5.dp, border, RoundedCornerShape(16.dp)).clickable(onClick = onClick),
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    RidePill(Format.date(ride.startEpoch), true, th)
-                    RidePill("${Format.time(ride.startEpoch)} - ${Format.time(ride.endEpoch)}", true, th)
+        // Accent strip in the ride's average-speed colour (same scale as the route map).
+        Box(Modifier.width(4.dp).fillMaxHeight().background(speedColor(ride.avgSpeedKmh)))
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(Format.dayDate(ride.startEpoch), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = th.textMain.toColor())
+                    Text(Format.timeRange(ride.startEpoch, ride.endEpoch), fontSize = 11.sp, color = th.textMuted.toColor())
                 }
-                Spacer(Modifier.height(8.dp))
-                // Wraps instead of squeezing: the row can hold up to four pills.
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    RidePill("${Format.km(ride.distanceM, 1)} km", true, th)
-                    RidePill("avg %.0f km/h".format(ride.avgSpeedKmh), false, th)
-                    RidePill("max %.0f km/h".format(ride.maxSpeedKmh), false, th)
-                }
+                Text(Format.duration(ride.durationS), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = th.textMain.toColor())
             }
-            Text(Format.duration(ride.durationS), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = th.textMain.toColor())
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = th.border.toColor().copy(alpha = 0.12f), thickness = 0.5.dp)
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth()) {
+                RideStat(Format.km(ride.distanceM, 1), "km", "DISTANCE", th, Modifier.weight(1f))
+                RideStat("%.0f".format(ride.avgSpeedKmh), "km/h", "AVERAGE", th, Modifier.weight(1f))
+                RideStat("%.0f".format(ride.maxSpeedKmh), "km/h", "TOP SPEED", th, Modifier.weight(1f))
+            }
         }
+    }
+}
+
+/** Big number with a small unit, and a quiet caption underneath. */
+@Composable
+private fun RideStat(value: String, unit: String, caption: String, th: AppTheme, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(value, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = th.textMain.toColor())
+            Text(unit, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = th.textMuted.toColor(), modifier = Modifier.padding(bottom = 2.dp))
+        }
+        Text(caption, fontSize = 8.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold, color = th.textMuted.toColor().copy(alpha = 0.7f))
     }
 }
 

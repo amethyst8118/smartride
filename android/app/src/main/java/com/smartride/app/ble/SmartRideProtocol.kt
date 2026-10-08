@@ -58,6 +58,7 @@ object SmartRideProtocol {
         val simulated get() = flags and 0x08 != 0
         val crashPending get() = flags and 0x10 != 0
         val timeSynced get() = flags and 0x20 != 0
+        val batteryCharging get() = flags and 0x40 != 0
         val hasPosition get() = lat != 0.0 || lon != 0.0
     }
 

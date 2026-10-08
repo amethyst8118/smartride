@@ -15,7 +15,8 @@ Legend: ✅ implemented and verified · 🟡 implemented against simulated input
 | Crash rule: impact → sustained tilt → stillness state machine | ✅ 🟡 | `lib/core/src/crash_detector.*`; unit tests (crash confirmed; pothole, cornering lean, lifted-upright all rejected) |
 | Ride-log transfer device → phone (list / get / ack, CRC-checked) | ✅ | 372-point log in ~2.3 s at MTU 247, CRC verified |
 | Route storage: online line simplification (4 m tolerance, speed and gap breaks) | ✅ | `lib/core/src/route_simplifier.*`; 4 unit tests |
-| Unit battery: Li-ion voltage → % in LIVE packet | ✅ 🟡 | `lib/core/src/battery.*`; simulated cell until the ADC divider is wired |
+| Unit battery: Li-ion voltage → %, charging / discharging flag in LIVE packet | ✅ 🟡 | `lib/core/src/battery.*`; simulated cell until the ADC divider and charger status pin are wired |
+| Accidental-ride filter (< 30 s or < 50 m discarded) | ✅ | `cfg::MIN_RIDE_S`, `cfg::MIN_RIDE_M` |
 | Unit tests (14, Unity, run on the ESP32-S3) | ✅ | `pio test -e esp32-s3` |
 | GNSS input | 🟡 | simulated: real road loop TKMIT → Ezhukone (11.7 km), with injected outliers and fix loss |
 | IMU input | 🟡 | simulated: riding vibration, pothole and crash signatures (serial `c`/`p` or the BOOT button) |

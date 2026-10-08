@@ -32,7 +32,7 @@ class RideRepository(private val dao: RideDao) {
             val errors = mutableListOf<String>()
             summaries.forEachIndexed { i, s ->
                 onProgress(i, summaries.size)
-                val key = sourceKey(source, s.startEpoch, s.distanceM)
+                val key = sourceKey(source, s.startEpoch)
                 if (dao.exists(key)) {
                     already++
                     source.acknowledge(s)
@@ -58,8 +58,13 @@ class RideRepository(private val dao: RideDao) {
     suspend fun clearRides() = dao.deleteAllRides()
 
     companion object {
-        fun sourceKey(source: RideLogSource, startEpoch: Long, distanceM: Long) =
-            "${source.key.substringBefore(':')}/$startEpoch/$distanceM"
+        /**
+         * Identity of a ride: where it came from and when it started (a unit cannot start
+         * two rides in the same second). Deliberately not the distance, which changes
+         * whenever the firmware's distance computation improves.
+         */
+        fun sourceKey(source: RideLogSource, startEpoch: Long) =
+            "${source.key.substringBefore(':')}/$startEpoch"
 
         private fun RemoteRideLog.toEntity(source: RideLogSource, key: String) = RideEntity(
             sourceKey = key,

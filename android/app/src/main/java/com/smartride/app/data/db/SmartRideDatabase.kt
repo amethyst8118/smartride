@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.Flow
 @Entity(tableName = "rides", indices = [Index(value = ["sourceKey"], unique = true)])
 data class RideEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    /** "<source>/<startEpoch>/<distanceM>": unique per ride, stable across device reboots. */
+    /** "<source>/<startEpoch>": unique per ride, stable across device reboots and firmware updates. */
     val sourceKey: String,
     val source: String,          // "device" | "demo"
     val sourceLabel: String,     // e.g. "SmartRide-A8B5"
@@ -95,12 +95,27 @@ interface RideDao {
     fun observeCrashes(): Flow<List<CrashEventEntity>>
 }
 
-@Database(entities = [RideEntity::class, RoutePointEntity::class, CrashEventEntity::class], version = 1, exportSchema = true)
+@Database(entities = [RideEntity::class, RoutePointEntity::class, CrashEventEntity::class], version = 2, exportSchema = true)
 abstract class SmartRideDatabase : RoomDatabase() {
     abstract fun rides(): RideDao
 
     companion object {
         fun create(context: Context): SmartRideDatabase =
-            Room.databaseBuilder(context, SmartRideDatabase::class.java, "smartride.db").build()
+            Room.databaseBuilder(context, SmartRideDatabase::class.java, "smartride.db")
+                .addMigrations(MIGRATION_1_2)
+                .build()
+
+        /**
+         * v1 keyed rides on source/start/distance, so a firmware update that changed the
+         * computed distance re-imported the same rides. Keep the first copy of each
+         * (source, start) and switch to the distance-free key.
+         */
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("DELETE FROM rides WHERE id NOT IN (SELECT MIN(id) FROM rides GROUP BY source, startEpoch)")
+                db.execSQL("DELETE FROM route_points WHERE rideId NOT IN (SELECT id FROM rides)")
+                db.execSQL("UPDATE rides SET sourceKey = source || '/' || startEpoch")
+            }
+        }
     }
 }

@@ -51,25 +51,31 @@ fun LiveCardGlass(title: String, tag: String, th: AppTheme, modifier: Modifier =
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = th.textMain.toColor())
-                Box(
-                    modifier = Modifier
-                        .background(th.accent.toColor().copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                        .border(0.5.dp, th.accent.toColor().copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                    Text(tag, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = th.accent.toColor())
-                }
+                TagChip(tag, th)
             }
             content()
         }
     }
 }
 
+/** Card title with a status chip: the same header every dashboard card uses. */
 @Composable
-fun PanelHeader(title: String, subtitle: String, th: AppTheme) {
+fun PanelHeader(title: String, tag: String, th: AppTheme) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(title.uppercase(), fontSize = 11.sp, letterSpacing = 1.sp, fontWeight = FontWeight.ExtraBold, color = th.textMain.toColor().copy(alpha = 0.85f))
-        Text(subtitle, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = th.accent.toColor())
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = th.textMain.toColor())
+        TagChip(tag, th)
+    }
+}
+
+@Composable
+fun TagChip(text: String, th: AppTheme) {
+    Box(
+        modifier = Modifier
+            .background(th.accent.toColor().copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+            .border(0.5.dp, th.accent.toColor().copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(text.uppercase(), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = th.accent.toColor())
     }
 }
 
@@ -195,11 +201,22 @@ object Format {
     private val dateFmt = java.time.format.DateTimeFormatter.ofPattern("MMM dd, yyyy")
     private val timeFmt = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
     private val monthFmt = java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy")
+    private val dayDateFmt = java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM")
+    private val clockFmt = java.time.format.DateTimeFormatter.ofPattern("h:mm")
 
     private fun at(epoch: Long) = java.time.Instant.ofEpochSecond(epoch).atZone(zone)
     fun date(epoch: Long): String = at(epoch).format(dateFmt)
     fun time(epoch: Long): String = at(epoch).format(timeFmt)
     fun month(epoch: Long): String = at(epoch).format(monthFmt)
+    fun dayDate(epoch: Long): String = at(epoch).format(dayDateFmt)
+
+    /** "8:20 – 8:32 AM", or "11:50 AM – 12:10 PM" when the half of the day changes. */
+    fun timeRange(start: Long, end: Long): String {
+        val a = at(start)
+        val b = at(end)
+        return if (a.hour / 12 == b.hour / 12) "${a.format(clockFmt)} – ${b.format(timeFmt)}"
+        else "${a.format(timeFmt)} – ${b.format(timeFmt)}"
+    }
 
     fun duration(seconds: Long): String {
         val h = seconds / 3600

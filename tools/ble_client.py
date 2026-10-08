@@ -37,7 +37,7 @@ DIS = {"2a29": "manufacturer", "2a24": "model", "2a26": "firmware", "2a27": "har
 OP = dict(start=0x01, stop=0x02, settime=0x03, cancel=0x10, list=0x20, get=0x21, ack=0x22,
           pothole=0x7E, crash=0x7F)
 CRASH_STATES = {0: "IDLE", 1: "IMPACT", 2: "TILT", 3: "CONFIRMED", 4: "CANCELLED"}
-LIVE_FLAGS = ["gnssFix", "rideActive", "imuOk", "simulated", "crashPending", "timeSynced"]
+LIVE_FLAGS = ["gnssFix", "rideActive", "imuOk", "simulated", "crashPending", "timeSynced", "batteryCharging"]
 
 
 # ------------------------------------------------------------------ parsing --

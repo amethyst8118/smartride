@@ -16,6 +16,7 @@
 #include "canned_rides.h"
 #include "config.h"
 #include "crash_detector.h"
+#include "geo.h"
 #include "protocol.h"
 #include "ride_log.h"
 #include "sim_sensors.h"
@@ -49,6 +50,9 @@ static bool     gTimeSynced = false;
 // Unit battery: ADC through a divider when wired, otherwise simulated.
 // Smoothed so load transients (radio, GNSS) don't make the percentage jump.
 static float gBatteryMv = 0;
+static bool batteryCharging() {
+    return cfg::CHARGE_STATUS_PIN >= 0 ? digitalRead(cfg::CHARGE_STATUS_PIN) == LOW : simBattery.charging();
+}
 static uint16_t readBatteryMv(bool riding) {
     const float mv = cfg::BATTERY_ADC_PIN >= 0
         ? analogReadMilliVolts(cfg::BATTERY_ADC_PIN) * cfg::BATTERY_DIVIDER
@@ -75,8 +79,10 @@ static void pushCommand(const Command& c) { xQueueSend(qCmd, &c, 0); }
 // Called with gLock held.
 static void storeFinishedRide(const char* why) {
     RideLog log = session.finish(nowEpoch());
-    if (log.points.size() < 2) {
-        Serial.printf("[RIDE] stopped (%s) - too short, discarded\n", why);
+    // Accidental start/stop taps are not rides: need both some time and some distance.
+    if (log.points.size() < 2 || log.durationS < cfg::MIN_RIDE_S || log.distanceM < cfg::MIN_RIDE_M) {
+        Serial.printf("[RIDE] stopped (%s) - too short (%lu s, %lu m), discarded\n", why,
+                      (unsigned long)log.durationS, (unsigned long)log.distanceM);
         return;
     }
     const uint32_t dist = log.distanceM, dur = log.durationS;
@@ -150,8 +156,20 @@ static void rideTask(void*) {
                     }
                 }
             }
-            if (fix.valid) gLastFix = fix;
-            gLastFix.valid = fix.valid;  // keep last good position, but report fix loss
+            // The live position gets the same plausibility gate as the odometer, ride or not,
+            // so the phone never draws an outlier jump.
+            static bool haveLive = false;
+            bool plausible = fix.valid;
+            if (plausible && haveLive && fix.tMs > gLastFix.tMs) {
+                const float kmh = geo::distanceM(gLastFix.lat, gLastFix.lon, fix.lat, fix.lon) /
+                                  ((fix.tMs - gLastFix.tMs) / 1000.f) * 3.6f;
+                plausible = kmh <= cfg::V_MAX_KMH;
+            }
+            if (plausible) {
+                gLastFix = fix;
+                haveLive = true;
+            }
+            gLastFix.valid = plausible;  // keep last good position, but report fix loss / outlier
             gLastFix.sats = fix.sats;
             gSpeedKmh = fix.valid ? fix.speedKmh : gSpeedKmh;
         }
@@ -373,6 +391,7 @@ static void bleTask(void*) {
                 p.sats = gLastFix.sats;
                 p.batteryMv = readBatteryMv(session.active());
                 p.batteryPct = battery::socFromMillivolts(p.batteryMv);
+                if (batteryCharging()) p.flags |= proto::LIVE_BATTERY_CHARGING;
                 p.speed = static_cast<uint16_t>(gLastFix.valid ? gLastFix.speedKmh * proto::SPEED_SCALE : 0);
                 p.rideDistanceM = session.active() ? static_cast<uint32_t>(st.distanceM()) : 0;
                 p.rideDurationS = session.active() ? st.durationS() : 0;
@@ -398,8 +417,8 @@ static void printInfo() {
     Serial.printf("\nSmartRide OBU %s on %s | BLE %s (%s, MTU %u) | clock %lu (%s)\n", FW_VERSION, SMARTRIDE_BOARD,
                   ble::deviceName(), ble::connected() ? "connected" : "advertising", ble::mtu(),
                   (unsigned long)nowEpoch(), gTimeSynced ? "synced" : "build time");
-    Serial.printf("battery: %u mV (%u %%%s)\n", (unsigned)gBatteryMv, battery::socFromMillivolts(gBatteryMv),
-                  cfg::BATTERY_ADC_PIN >= 0 ? "" : ", simulated");
+    Serial.printf("battery: %u mV (%u %%, %s%s)\n", (unsigned)gBatteryMv, battery::socFromMillivolts(gBatteryMv),
+                  batteryCharging() ? "charging" : "discharging", cfg::BATTERY_ADC_PIN >= 0 ? "" : ", simulated");
     Serial.printf("ride: %s  route idx %u  crash state %u  imu overruns %lu  free heap %lu\n",
                   session.active() ? "ACTIVE" : "idle", gnss.index(), (unsigned)detector.state(),
                   (unsigned long)gImuOverruns, (unsigned long)ESP.getFreeHeap());
@@ -470,6 +489,7 @@ void setup() {
     const uint32_t t0 = millis();
     while (!Serial && millis() - t0 < 1500) delay(10);
     pinMode(cfg::BOOT_BUTTON_PIN, INPUT_PULLUP);
+    if (cfg::CHARGE_STATUS_PIN >= 0) pinMode(cfg::CHARGE_STATUS_PIN, INPUT_PULLUP);
 
     Serial.printf("\n=== SmartRide OBU %s (%s) - SIMULATED SENSORS ===\n", FW_VERSION, SMARTRIDE_BOARD);
 

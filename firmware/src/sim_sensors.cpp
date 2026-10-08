@@ -40,10 +40,13 @@ GnssFix SimGnss::next(uint32_t tMs) {
 // ------------------------------------------------------------- SimBattery ----
 
 uint16_t SimBattery::millivolts(uint32_t tMs, bool riding) {
+    charging_ = !riding && mv_ < 4195.f;
     if (lastMs_ != 0) {
         const float minutes = (tMs - lastMs_) / 60000.f;
-        mv_ -= minutes * (riding ? 2.5f : 0.5f);  // visibly drains over a demo ride
-        if (mv_ < 3650.f) mv_ = 4150.f;           // "recharged" so a long demo never dies
+        if (riding) mv_ -= minutes * 2.5f;        // visibly drains over a demo ride
+        else if (charging_) mv_ += minutes * 6.f; // parked and plugged in
+        if (mv_ < 3650.f) mv_ = 3650.f;
+        if (mv_ > 4200.f) mv_ = 4200.f;
     }
     lastMs_ = tMs;
     return static_cast<uint16_t>(mv_ + rng_.uniform(-2.f, 2.f));

@@ -27,6 +27,8 @@ constexpr float    ROUTE_SPEED_STEP_KMH = 8.0f;    // keep speed changes visible
 constexpr float    ROUTE_MAX_GAP_M      = 250.0f;
 constexpr uint32_t ROUTE_MAX_GAP_MS     = 30000;
 constexpr uint16_t ROUTE_POINTS_MAX     = 1000;
+constexpr uint32_t MIN_RIDE_S           = 30;      // shorter rides are discarded (accidental start/stop)
+constexpr uint32_t MIN_RIDE_M           = 50;
 
 // ---- Crash rule (impact -> sustained tilt -> stillness) --------------------
 constexpr float    IMPACT_G          = 4.0f;    // (report) nominal, (tune)
@@ -50,6 +52,7 @@ constexpr uint32_t LOG_FRAME_GAP_MS  = 6;       // pacing between notifications
 // ---- Battery (single Li-ion cell behind the BMS) ----------------------------
 constexpr int      BATTERY_ADC_PIN   = -1;      // -1 = not wired yet -> simulated battery
 constexpr float    BATTERY_DIVIDER   = 2.0f;    // cell voltage = ADC voltage x divider
+constexpr int      CHARGE_STATUS_PIN = -1;      // charger "CHRG" output (e.g. TP4056, active low); -1 = not wired
 
 // ---- Hardware --------------------------------------------------------------
 constexpr int      BOOT_BUTTON_PIN   = 0;       // BOOT button = simulate crash

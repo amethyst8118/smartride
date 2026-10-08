@@ -42,13 +42,16 @@ private:
     Lcg      rng_{0x5EED1234};
 };
 
-// STUB battery: a cell discharging slowly (faster while riding). Replaced by the
-// ADC reading once cfg::BATTERY_ADC_PIN is wired to the cell through a divider.
+// STUB battery: discharges while riding, charges while parked (as if the unit is
+// plugged in between rides). Replaced by the ADC reading and the charger's status
+// pin once cfg::BATTERY_ADC_PIN / cfg::CHARGE_STATUS_PIN are wired.
 class SimBattery {
 public:
     uint16_t millivolts(uint32_t tMs, bool riding);
+    bool charging() const { return charging_; }
 
 private:
+    bool     charging_ = false;
     float    mv_ = 4080.f;   // ~85 %
     uint32_t lastMs_ = 0;
     Lcg      rng_{0xBA77};
