@@ -127,7 +127,7 @@ class SmartRideViewModel(app: Application) : AndroidViewModel(app) {
             if (p.rideActive && p.gnssFix && p.hasPosition) {
                 val pt = RoutePoint(p.lat, p.lon, p.speedKmh)
                 val last = trail.lastOrNull()
-                if (last == null || com.smartride.app.data.DemoRideLogSource.haversineM(last, pt) > 5) trail = (trail + pt).takeLast(3000)
+                if (last == null || com.smartride.app.data.Geo.distanceM(last, pt) > 5) trail = (trail + pt).takeLast(3000)
             }
             s.copy(live = p, liveTrail = trail)
         }
@@ -239,6 +239,8 @@ class SmartRideViewModel(app: Application) : AndroidViewModel(app) {
     fun setReplayIndex(i: Int) = _ui.update { it.copy(replayIndex = i) }
 
     fun shuffleTheme() = c.settings.update { it.copy(themeIndex = (it.themeIndex + 1).mod(ThemeDefs.themes.size)) }
+
+    fun setTheme(index: Int) = c.settings.update { it.copy(themeIndex = index.mod(ThemeDefs.themes.size)) }
 
     fun updateSettings(transform: (Settings) -> Settings) = c.settings.update(transform)
 

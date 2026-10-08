@@ -55,27 +55,20 @@ void RideSession::start(uint32_t epoch, bool timeSynced) {
 void RideSession::pushPoint(const GnssFix& f) {
     if (points_.size() >= cfg::ROUTE_POINTS_MAX) return;
     points_.push_back({toE7(f.lat), toE7(f.lon), toX100(f.speedKmh)});
-    lastPointFix_ = f;
 }
 
 RideStats::Result RideSession::addFix(const GnssFix& fix) {
     const auto res = stats_.addFix(fix);
-    if (res == RideStats::Result::First) {
-        pushPoint(fix);
-    } else if (res == RideStats::Result::Accepted || res == RideStats::Result::Stationary) {
-        const double fromLast = geo::haversineM(lastPointFix_.lat, lastPointFix_.lon, fix.lat, fix.lon);
-        if (fromLast >= cfg::ROUTE_POINT_STEP_M || fix.tMs - lastPointFix_.tMs >= cfg::ROUTE_POINT_MAX_GAP_MS)
-            pushPoint(fix);
-    }
     if (res != RideStats::Result::RejectedInvalid && res != RideStats::Result::RejectedImplausible) {
-        lastValidFix_ = fix;
-        haveLastValid_ = true;
+        GnssFix keep;
+        if (simplifier_.add(fix, keep)) pushPoint(keep);
     }
     return res;
 }
 
 RideLog RideSession::finish(uint32_t endEpoch) {
-    if (haveLastValid_ && !points_.empty() && lastValidFix_.tMs != lastPointFix_.tMs) pushPoint(lastValidFix_);
+    GnssFix last;
+    if (simplifier_.flush(last)) pushPoint(last);
     RideLog log;
     log.startEpoch = startEpoch_;
     log.endEpoch = endEpoch;

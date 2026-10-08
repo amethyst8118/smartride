@@ -50,7 +50,7 @@ Each characteristic has a `0x2901` User Description descriptor.
 | 2 | u8 | sats | satellites in use |
 | 3 | u8 | batteryPct | 0–100, `0xFF` = not measured |
 | 4 | u16 | speed | km/h × 100 (GNSS velocity solution) |
-| 6 | u16 | reserved | 0 |
+| 6 | u16 | batteryMv | unit battery voltage in mV (smoothed), `0` = not measured |
 | 8 | u32 | rideDistanceM | metres in the current ride (0 when no ride) |
 | 12 | u32 | rideDurationS | seconds in the current ride |
 | 16 | i32 | lat | last valid position |

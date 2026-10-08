@@ -43,9 +43,9 @@ LIVE_FLAGS = ["gnssFix", "rideActive", "imuOk", "simulated", "crashPending", "ti
 # ------------------------------------------------------------------ parsing --
 
 def parse_live(b: bytes) -> dict:
-    ver, flags, sats, batt, spd, _r, dist, dur, lat, lon = struct.unpack("<BBBBHHIIii", b[:24])
+    ver, flags, sats, batt, spd, mv, dist, dur, lat, lon = struct.unpack("<BBBBHHIIii", b[:24])
     return dict(version=ver, flags=[n for i, n in enumerate(LIVE_FLAGS) if flags >> i & 1], sats=sats,
-                battery=None if batt == 0xFF else batt, speed_kmh=spd / 100, ride_distance_m=dist,
+                battery=None if batt == 0xFF else batt, battery_mv=mv or None, speed_kmh=spd / 100, ride_distance_m=dist,
                 ride_duration_s=dur, lat=lat / 1e7, lon=lon / 1e7)
 
 

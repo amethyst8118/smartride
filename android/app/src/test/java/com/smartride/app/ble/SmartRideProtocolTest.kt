@@ -23,11 +23,18 @@ class SmartRideProtocolTest {
         assertFalse(p.crashPending)
         assertEquals(9, p.sats)
         assertNull(p.batteryPct)  // 0xFF = not measured
+        assertNull(p.batteryMv)   // 0 = not measured
         assertEquals(29.24, p.speedKmh, 1e-9)
         assertEquals(627L, p.rideDistanceM)
         assertEquals(99L, p.rideDurationS)
         assertEquals(8.994075, p.lat, 1e-9)
         assertEquals(76.6983466, p.lon, 1e-9)
+    }
+
+    @Test fun `parses LIVE battery fields`() {
+        val p = SmartRideProtocol.parseLive(hex("012f09556c0bf00f73020000630000000e635c052a3db72d"))!!
+        assertEquals(85, p.batteryPct)
+        assertEquals(4080, p.batteryMv)
     }
 
     @Test fun `rejects short LIVE packet and tolerates longer one`() {

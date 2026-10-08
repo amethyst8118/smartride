@@ -15,6 +15,7 @@ data class Settings(
     val emergencyNumber: String = "",
     val crashCountdownS: Int = 30,
     val developerMode: Boolean = false,  // shows simulate-crash/pothole controls
+    val animatedBackground: Boolean = true,
 )
 
 /** Small key-value settings (SharedPreferences) exposed as a StateFlow. */
@@ -32,6 +33,7 @@ class SettingsStore(context: Context) {
         emergencyNumber = prefs.getString("emergencyNumber", "") ?: "",
         crashCountdownS = prefs.getInt("crashCountdownS", 30),
         developerMode = prefs.getBoolean("developerMode", false),
+        animatedBackground = prefs.getBoolean("animatedBackground", true),
     )
 
     fun update(transform: (Settings) -> Settings) {
@@ -45,6 +47,7 @@ class SettingsStore(context: Context) {
             putString("emergencyNumber", s.emergencyNumber)
             putInt("crashCountdownS", s.crashCountdownS)
             putBoolean("developerMode", s.developerMode)
+            putBoolean("animatedBackground", s.animatedBackground)
         }
         _settings.value = s
     }

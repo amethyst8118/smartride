@@ -45,6 +45,7 @@ object SmartRideProtocol {
         val flags: Int,
         val sats: Int,
         val batteryPct: Int?,      // null = not measured
+        val batteryMv: Int?,       // unit battery voltage, null = not measured
         val speedKmh: Double,
         val rideDistanceM: Long,
         val rideDurationS: Long,
@@ -105,10 +106,11 @@ object SmartRideProtocol {
         val sats = bb.u8()
         val batt = bb.u8()
         val speed = bb.u16() / 100.0
-        bb.u16() // reserved
+        val mv = bb.u16()
         return LivePacket(
             version = version, flags = flags, sats = sats,
             batteryPct = if (batt == 0xFF) null else batt,
+            batteryMv = if (mv == 0) null else mv,
             speedKmh = speed,
             rideDistanceM = bb.u32(), rideDurationS = bb.u32(),
             lat = bb.coord(), lon = bb.coord(),

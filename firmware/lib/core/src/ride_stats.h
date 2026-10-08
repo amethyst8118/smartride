@@ -1,19 +1,13 @@
-// Ride statistics from GNSS fixes -- Phase 1 report, section "Positioning,
-// Speed and Distance":
-//   d  = Haversine(fix_i-1, fix_i)
+// Ride statistics from GNSS fixes:
+//   d  = geo::distanceM(fix_i-1, fix_i)   (ellipsoidal local projection, see geo.h)
 //   D  = sum(d_i),  d_i accepted iff fix valid AND d_i / dt_i <= v_max
-//   v  = v_GNSS,    v_avg = D / T,  T = sum(dt_i)
+//   v  = v_GNSS (Doppler),  v_avg = D / T,  T = sum(dt_i)
 //
 // Pure C++ (no Arduino headers) so it can be unit-tested on the host.
 #pragma once
 
 #include <stdint.h>
 #include "types.h"
-
-namespace geo {
-// Great-circle distance in metres between two WGS-84 points (degrees).
-double haversineM(double lat1, double lon1, double lat2, double lon2);
-}
 
 class RideStats {
 public:

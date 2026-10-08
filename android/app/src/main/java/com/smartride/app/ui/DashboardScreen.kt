@@ -15,6 +15,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -74,6 +75,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -86,6 +92,7 @@ import com.smartride.app.SmartRideViewModel
 import com.smartride.app.SyncStatus
 import com.smartride.app.UiState
 import com.smartride.app.ble.SmartRideBleClient.Status
+import com.smartride.app.ble.SmartRideProtocol.LivePacket
 import com.smartride.app.data.db.RideEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,15 +115,11 @@ fun SmartRideRoot(vm: SmartRideViewModel, onRequestPermissions: () -> Unit, onEn
     val drawerOffset by animateFloatAsState(if (drawerOpen) 0f else 1f, tween(400, easing = EaseOutCubic), label = "drawer")
     BackHandler(enabled = drawerOpen) { drawerOpen = false }
 
-    val shimmer by rememberInfiniteTransition(label = "bg").animateFloat(
-        0.08f, 0.22f, infiniteRepeatable(tween(9000, easing = EaseInOutSine), RepeatMode.Reverse), label = "shimmer",
-    )
+    // A new backdrop style is picked each time the theme changes, as in the original app.
+    val backdrop = remember(th.name) { BackdropStyle.entries.random() }
 
-    Box(
-        Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(th.bgStart.toColor(), th.accent.toColor().copy(alpha = shimmer * 0.45f), th.bgEnd.toColor())),
-        ),
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        AnimatedBackground(th, backdrop, animate = s.settings.animatedBackground)
         val refreshState = rememberPullToRefreshState()
         val syncing = s.sync is SyncStatus.Running
         PullToRefreshBox(
@@ -142,14 +145,10 @@ fun SmartRideRoot(vm: SmartRideViewModel, onRequestPermissions: () -> Unit, onEn
             }
         }
 
-        // Settings drawer
+        // Settings: full-screen page sliding in from the right
         if (drawerOffset < 1f) {
-            Box(
-                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f * (1f - drawerOffset)))
-                    .clickable(remember { MutableInteractionSource() }, indication = null) { drawerOpen = false },
-            )
             Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * drawerOffset }) {
-                SettingsDrawer(s, th, vm, onClose = { drawerOpen = false })
+                SettingsScreen(s, th, backdrop, vm, onClose = { drawerOpen = false })
             }
         }
 
@@ -191,38 +190,23 @@ private fun TopBar(
             ConnectionRow(s, th, onRequestPermissions, onEnableBluetooth)
             Spacer(Modifier.height(14.dp))
 
-            // Telemetry hub: speed | ride distance + duration
+            // Telemetry hub: unit battery | speed + ride distance, then ride time / odometer / service
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(
-                    Modifier.weight(1.3f).background(th.panelSoft.toColor().copy(alpha = 0.4f), RoundedCornerShape(18.dp))
-                        .border(0.5.dp, th.border.toColor().copy(alpha = 0.1f), RoundedCornerShape(18.dp)).padding(12.dp),
-                ) {
-                    Column {
-                        Text("SPEED", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = th.textMuted.toColor().copy(alpha = 0.6f))
-                        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            val spd = live?.takeIf { it.gnssFix }?.speedKmh
-                            Text(spd?.let { "%.0f".format(it) } ?: "--", fontSize = 40.sp, fontWeight = FontWeight.Black,
-                                color = spd?.let { speedColor(it) } ?: th.textMain.toColor())
-                            Text("km/h", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = th.textMuted.toColor(), modifier = Modifier.padding(bottom = 8.dp))
-                        }
-                        // speed bar against the top band
-                        val frac = ((live?.speedKmh ?: 0.0) / 60.0).toFloat().coerceIn(0f, 1f)
-                        Box(Modifier.fillMaxWidth().height(6.dp).background((if (th.isLight) th.border.toColor() else Color.White).copy(alpha = 0.15f), CircleShape)) {
-                            Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(th.accent.toColor(), CircleShape))
-                        }
-                    }
-                }
+                BatteryCard(live, th, Modifier.weight(1.3f))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val spd = live?.takeIf { it.gnssFix }?.speedKmh
+                    DashboardMetricNode("SPEED", spd?.let { "%.0f km/h".format(it) } ?: "--", th, Modifier.fillMaxWidth(),
+                        valueColor = spd?.let { speedColor(it) })
                     DashboardMetricNode("THIS RIDE", live?.takeIf { it.rideActive }?.let { "${Format.km(it.rideDistanceM.toDouble())} km" } ?: "--", th, Modifier.fillMaxWidth())
-                    DashboardMetricNode("RIDE TIME", live?.takeIf { it.rideActive }?.let { Format.clock(it.rideDurationS) } ?: "--", th, Modifier.fillMaxWidth())
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DashboardMetricNode("ODOMETER (LOGGED)", "${Format.km(s.odometerKm * 1000, 1)} km", th, Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DashboardMetricNode("RIDE TIME", live?.takeIf { it.rideActive }?.let { Format.clock(it.rideDurationS) } ?: "--", th, Modifier.weight(1f), compact = true)
+                DashboardMetricNode("ODOMETER", "${Format.km(s.odometerKm * 1000, 1)} km", th, Modifier.weight(1f), compact = true)
                 val left = s.kmToService
                 DashboardMetricNode(
-                    "NEXT SERVICE", if (s.serviceDue) "DUE NOW" else "in %.0f km".format(left), th, Modifier.weight(1f),
+                    "SERVICE IN", if (s.serviceDue) "DUE" else "%.0f km".format(left), th, Modifier.weight(1f), compact = true,
                     valueColor = when { s.serviceDue -> ColorDanger; left < 200 -> ColorWarn; else -> null },
                 )
             }
@@ -238,6 +222,59 @@ private fun TopBar(
                     Text("DONE", fontSize = 11.sp, fontWeight = FontWeight.Black, color = ColorDanger, modifier = Modifier.clickable { vm.markServiced() })
                 }
             }
+        }
+    }
+}
+
+/** Unit battery in the original app's style: big percentage, cell glyph, charge bar. */
+@Composable
+private fun BatteryCard(live: LivePacket?, th: AppTheme, modifier: Modifier = Modifier) {
+    val pct = live?.batteryPct
+    val low = pct != null && pct < 20
+    val cellColor = if (low) ColorDanger else ColorOk
+    Box(
+        modifier.background(th.panelSoft.toColor().copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .border(0.5.dp, th.border.toColor().copy(alpha = 0.1f), RoundedCornerShape(18.dp)).padding(12.dp),
+    ) {
+        Column {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("BATTERY", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = th.textMuted.toColor().copy(alpha = 0.6f))
+                if (low) StatusBadge("LOW", ColorDanger)
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(pct?.let { "$it%" } ?: "--", fontSize = 30.sp, fontWeight = FontWeight.Black, color = th.textMain.toColor())
+                Canvas(Modifier.padding(bottom = 9.dp).size(width = 26.dp, height = 13.dp)) {
+                    val capW = 3.dp.toPx()
+                    drawRoundRect(cellColor.copy(alpha = 0.7f), size = Size(size.width - capW, size.height),
+                        cornerRadius = CornerRadius(2.5.dp.toPx()), style = Stroke(1.5.dp.toPx()))
+                    drawRect(cellColor.copy(alpha = 0.7f), topLeft = Offset(size.width - capW, size.height * 0.28f),
+                        size = Size(capW, size.height * 0.44f))
+                    val inset = 2.5.dp.toPx()
+                    drawRoundRect(cellColor, topLeft = Offset(inset, inset),
+                        size = Size((size.width - capW - 2 * inset) * ((pct ?: 0) / 100f), size.height - 2 * inset),
+                        cornerRadius = CornerRadius(1.dp.toPx()))
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.fillMaxWidth().height(6.dp).clip(CircleShape)
+                    .background((if (th.isLight) th.border.toColor() else Color.White).copy(alpha = 0.15f)),
+            ) {
+                Box(
+                    Modifier.fillMaxWidth(((pct ?: 0) / 100f).coerceIn(0f, 1f)).fillMaxHeight().clip(CircleShape)
+                        .background(if (low) ColorDanger else th.accent.toColor()),
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                when {
+                    live == null -> "Unit not connected"
+                    live.batteryMv == null -> "Not measured"
+                    else -> "%.2f V · on-board unit".format(live.batteryMv / 1000.0)
+                },
+                fontSize = 10.sp, fontWeight = FontWeight.Medium, color = th.textMuted.toColor(),
+            )
         }
     }
 }
@@ -280,7 +317,11 @@ private fun SyncStatusLine(s: UiState, th: AppTheme, vm: SmartRideViewModel) {
         SyncStatus.Idle -> null
         is SyncStatus.Running -> if (st.total > 0) "Syncing ride logs from ${st.label}… ${st.done}/${st.total}" else "Syncing ride logs from ${st.label}…"
         is SyncStatus.Done -> with(st.report) {
-            "Synced from $source: $added new, $alreadyStored already stored" + if (errors.isNotEmpty()) ", ${errors.size} failed (${errors.first()})" else ""
+            when {
+                errors.isNotEmpty() -> "Synced $added ride${if (added == 1) "" else "s"} from $source, ${errors.size} failed (${errors.first()})"
+                added > 0 -> "Synced $added new ride${if (added == 1) "" else "s"} from $source"
+                else -> "Up to date with $source"
+            }
         }
         is SyncStatus.Failed -> "Sync failed: ${st.message}"
     }
@@ -308,13 +349,7 @@ private fun DeviceStatusCard(s: UiState, th: AppTheme, vm: SmartRideViewModel) {
             StatusRow("Unit", c.deviceName ?: "—", th)
             StatusRow("Firmware", listOfNotNull(c.firmware, c.hardware).joinToString(" · ").ifEmpty { "—" }, th)
             StatusRow("Link MTU", if (c.isReady) "${c.mtu} B" else "—", th)
-            HorizontalDivider(color = th.border.toColor().copy(alpha = 0.08f), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
-            StatusRow("Ride", when { live == null -> "—"; live.rideActive -> "RECORDING"; else -> "IDLE" }, th,
-                valueColor = if (live?.rideActive == true) ColorOk else null)
-            StatusRow("Position", live?.takeIf { it.hasPosition }?.let { "%.5f, %.5f".format(it.lat, it.lon) } ?: "—", th)
-            StatusRow("Motion sensor", when { live == null -> "—"; live.imuOk -> "OK"; else -> "FAULT" }, th)
             StatusRow("Clock", when { live == null -> "—"; live.timeSynced -> "synced with phone"; else -> "not synced" }, th)
-            StatusRow("Battery", live?.batteryPct?.let { "$it %" } ?: if (live == null) "—" else "not measured (v0.1)", th)
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -484,7 +519,6 @@ private fun RideRow(ride: RideEntity, selected: Boolean, th: AppTheme, onClick: 
                     RidePill("${Format.km(ride.distanceM, 1)} km", true, th)
                     RidePill("avg %.0f km/h".format(ride.avgSpeedKmh), false, th)
                     RidePill("max %.0f km/h".format(ride.maxSpeedKmh), false, th)
-                    if (ride.crashCount > 0) RidePill("⚠ ${ride.crashCount}", false, th)
                 }
             }
             Text(Format.duration(ride.durationS), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = th.textMain.toColor())
@@ -532,10 +566,6 @@ private fun RideDetails(ride: RideEntity, s: UiState, th: AppTheme, vm: SmartRid
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MetricsNodeGlass("MAX SPEED", "%.0f km/h".format(ride.maxSpeedKmh), th, Modifier.weight(1f))
             MetricsNodeGlass("AVG SPEED", "%.1f km/h".format(ride.avgSpeedKmh), th, Modifier.weight(1f))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricsNodeGlass("ROUTE POINTS", "${route.size}", th, Modifier.weight(1f))
-            MetricsNodeGlass("CRASH ALERTS", "${ride.crashCount}", th, Modifier.weight(1f))
         }
     }
 }

@@ -7,7 +7,7 @@ import com.smartride.app.data.DemoRideLogSource
 import com.smartride.app.data.RideRepository
 import com.smartride.app.data.SettingsStore
 import com.smartride.app.data.db.SmartRideDatabase
-import org.osmdroid.config.Configuration
+import org.maplibre.android.MapLibre
 
 /** Manual dependency container: one instance of each service for the whole app. */
 class AppContainer(app: Application) {
@@ -26,11 +26,6 @@ class SmartRideApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // OpenStreetMap tile servers require an identifying User-Agent.
-        Configuration.getInstance().apply {
-            userAgentValue = "${BuildConfig.APPLICATION_ID}/${BuildConfig.VERSION_NAME}"
-            osmdroidBasePath = cacheDir.resolve("osmdroid")
-            osmdroidTileCache = cacheDir.resolve("osmdroid/tiles")
-        }
+        MapLibre.getInstance(this)  // vector map engine; must start before any MapView
     }
 }

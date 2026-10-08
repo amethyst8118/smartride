@@ -8,7 +8,9 @@
 
 #include <stdint.h>
 #include <vector>
+#include "config.h"
 #include "ride_stats.h"
+#include "route_simplifier.h"
 #include "types.h"
 
 struct RoutePoint {
@@ -45,7 +47,7 @@ private:
     uint16_t nextId_ = 1;
 };
 
-// One ride in progress: statistics + decimated route.
+// One ride in progress: statistics + simplified route.
 class RideSession {
 public:
     void start(uint32_t epoch, bool timeSynced);
@@ -68,7 +70,6 @@ private:
     bool      timeSynced_ = false;
     uint8_t   crashes_ = 0;
     std::vector<RoutePoint> points_;
-    GnssFix   lastPointFix_{};
-    GnssFix   lastValidFix_{};
-    bool      haveLastValid_ = false;
+    RouteSimplifier simplifier_{{cfg::ROUTE_TOLERANCE_M, cfg::ROUTE_SPEED_STEP_KMH,
+                                 cfg::ROUTE_MAX_GAP_M, cfg::ROUTE_MAX_GAP_MS}};
 };

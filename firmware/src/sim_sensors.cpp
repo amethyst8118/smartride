@@ -37,6 +37,18 @@ GnssFix SimGnss::next(uint32_t tMs) {
     return fix;
 }
 
+// ------------------------------------------------------------- SimBattery ----
+
+uint16_t SimBattery::millivolts(uint32_t tMs, bool riding) {
+    if (lastMs_ != 0) {
+        const float minutes = (tMs - lastMs_) / 60000.f;
+        mv_ -= minutes * (riding ? 2.5f : 0.5f);  // visibly drains over a demo ride
+        if (mv_ < 3650.f) mv_ = 4150.f;           // "recharged" so a long demo never dies
+    }
+    lastMs_ = tMs;
+    return static_cast<uint16_t>(mv_ + rng_.uniform(-2.f, 2.f));
+}
+
 // ----------------------------------------------------------------- SimImu ----
 
 ImuSample SimImu::sample(uint32_t tMs, float speedKmh) {

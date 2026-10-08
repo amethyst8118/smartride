@@ -12,7 +12,7 @@ network is needed.
 ```mermaid
 flowchart LR
     subgraph OBU["On-board unit (ESP32-S3)"]
-        GNSS["ATGM336H-5N GNSS<br/>(simulated in v0.1)"] --> RIDE["ride_task<br/>Haversine + plausibility gate"]
+        GNSS["ATGM336H-5N GNSS<br/>(simulated in v0.1)"] --> RIDE["ride_task<br/>ellipsoidal distance + plausibility gate"]
         IMU["MPU6500 IMU<br/>(simulated in v0.1)"] --> CRASH["crash_task<br/>impact → tilt → stillness"]
         RIDE --> LOGS[("Ride-log store")]
         RIDE --> BLE["ble_task<br/>GATT server"]
@@ -21,7 +21,7 @@ flowchart LR
     end
     BLE <-->|"BLE GATT<br/>LIVE · CRASH · CONTROL · LOG"| APP["Android app<br/>(Kotlin / Compose)"]
     APP --> DB[("Room / SQLite<br/>ride history")]
-    APP --> MAP["OpenStreetMap<br/>route view"]
+    APP --> MAP["Vector maps<br/>(MapLibre + OpenFreeMap)"]
 ```
 
 ## Repository
@@ -56,10 +56,11 @@ tools/.venv/Scripts/python tools/ble_client.py logs      # sync and CRC-verify a
 ## Status (v0.1)
 
 - **Firmware:** the BLE protocol, ride statistics, crash state machine and ride-log transfer are
-  implemented, unit-tested (14 tests on the board) and running on the ESP32-S3. GNSS and IMU
+  implemented, unit-tested on the board (`pio test`) and running on the ESP32-S3. GNSS and IMU
   input are **simulated** along a real road route near the college until the sensors are fitted.
-- **App:** live dashboard, ride-log sync into SQLite, OpenStreetMap route history with replay,
-  charts, crash alert with countdown and maintenance reminder. 18 JVM tests, lint clean.
+- **App:** live dashboard with unit battery, ride-log sync into SQLite, vector-map route history
+  with replay, charts, crash alert with countdown, maintenance reminder, GPU-animated themes.
+  20 JVM tests, lint clean.
 
 Full table: [docs/progress.md](docs/progress.md).
 

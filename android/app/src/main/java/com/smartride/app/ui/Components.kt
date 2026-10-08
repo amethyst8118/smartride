@@ -74,17 +74,21 @@ fun PanelHeader(title: String, subtitle: String, th: AppTheme) {
 }
 
 @Composable
-fun DashboardMetricNode(label: String, value: String, th: AppTheme, modifier: Modifier = Modifier, valueColor: Color? = null) {
+fun DashboardMetricNode(
+    label: String, value: String, th: AppTheme, modifier: Modifier = Modifier,
+    valueColor: Color? = null, compact: Boolean = false,
+) {
     Box(
         modifier = modifier
             .background(th.panelSoft.toColor().copy(alpha = 0.4f), RoundedCornerShape(14.dp))
             .border(0.5.dp, th.border.toColor().copy(alpha = 0.08f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = if (compact) 10.dp else 14.dp, vertical = 12.dp),
     ) {
         Column {
-            Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = th.textMuted.toColor().copy(alpha = 0.6f))
+            Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = th.textMuted.toColor().copy(alpha = 0.6f), maxLines = 1)
             Spacer(Modifier.height(4.dp))
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = valueColor ?: th.textMain.toColor())
+            Text(value, fontSize = if (compact) 15.sp else 18.sp, fontWeight = FontWeight.ExtraBold,
+                color = valueColor ?: th.textMain.toColor(), maxLines = 1)
         }
     }
 }

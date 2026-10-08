@@ -1,19 +1,7 @@
 #include "ride_stats.h"
 
-#include <math.h>
 #include "config.h"
-
-namespace geo {
-
-double haversineM(double lat1, double lon1, double lat2, double lon2) {
-    constexpr double DEG = M_PI / 180.0;
-    const double p1 = lat1 * DEG, p2 = lat2 * DEG;
-    const double dp = p2 - p1, dl = (lon2 - lon1) * DEG;
-    const double a = sin(dp / 2) * sin(dp / 2) + cos(p1) * cos(p2) * sin(dl / 2) * sin(dl / 2);
-    return 2.0 * cfg::EARTH_RADIUS_M * atan2(sqrt(a), sqrt(1.0 - a));
-}
-
-}  // namespace geo
+#include "geo.h"
 
 void RideStats::reset() { *this = RideStats(); }
 
@@ -36,7 +24,7 @@ RideStats::Result RideStats::addFix(const GnssFix& fix) {
     }
 
     const uint32_t dtMs = fix.tMs - lastTMs_;
-    const double d = geo::haversineM(refLat_, refLon_, fix.lat, fix.lon);
+    const double d = geo::distanceM(refLat_, refLon_, fix.lat, fix.lon);
     lastStepM_ = d;
 
     // Plausibility gate: a single bad fix must never corrupt the odometer.

@@ -2,7 +2,7 @@
 
 Kotlin + Jetpack Compose app that connects to the SmartRide on-board unit over BLE. It shows
 the live ride, syncs the unit's ride logs into a local SQLite (Room) database, draws routes on
-OpenStreetMap and raises a cancellable crash alert.
+vector maps (MapLibre + OpenFreeMap) and raises a cancellable crash alert.
 
 ## Build
 
@@ -52,7 +52,7 @@ com.smartride.app
 │   ├── Analytics.kt           km per day, rides per hour, service countdown
 │   ├── SettingsStore.kt       rider, emergency contact, service interval, theme
 │   └── db/SmartRideDatabase.kt Room: rides, route_points, crash_events
-└── ui/                        Compose screens (dashboard, charts, OSM maps, crash alert, settings)
+└── ui/                        Compose screens (dashboard, charts, vector maps, animated backgrounds, crash alert, settings)
 ```
 
 **Ride-log sources.** `RideLogSource` is the extension point for the "remote ride logs". The unit

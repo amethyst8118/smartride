@@ -4,36 +4,56 @@ import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.view.Gravity
 import android.view.MotionEvent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.drawable.toDrawable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.BoundingBox
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.CustomZoomButtonsController
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Polyline
-import org.osmdroid.views.overlay.TilesOverlay
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.LineString
+import org.maplibre.geojson.Point
 
 data class MapPoint(val lat: Double, val lon: Double, val speedKmh: Double = 0.0)
 
-/**
- * OpenStreetMap view (osmdroid) showing a speed-coloured route, start/end pins
- * and an optional position marker. Used for both the live ride and history.
+/*
+ * Vector maps: MapLibre Native rendering OpenFreeMap tiles (OpenStreetMap data).
+ * Roads and labels are drawn as geometry on the GPU, so the map is sharp at any
+ * screen density and zoom level -- unlike raster tiles stretched to phone DPI --
+ * and no API key is needed.
  */
+private const val STYLE_LIGHT = "https://tiles.openfreemap.org/styles/liberty"
+private const val STYLE_DARK = "https://tiles.openfreemap.org/styles/fiord"
+
+private const val SRC_ROUTE = "sr-route"
+private const val SRC_PINS = "sr-pins"
+private const val SRC_POS = "sr-pos"
+
+/** Speed-coloured route with start/end pins and an optional live position marker. */
 @SuppressLint("ClickableViewAccessibility")
 @Composable
 fun RouteMap(
@@ -46,128 +66,176 @@ fun RouteMap(
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val holder = remember { MapHolder() }
+    var map by remember { mutableStateOf<MapLibreMap?>(null) }
+    var loadedStyle by remember { mutableStateOf<Style?>(null) }
+    val state = remember { RenderState() }
 
     val mapView = remember {
-        MapView(context).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
-            setMultiTouchControls(true)
-            zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
-            isTilesScaledToDpi = true
-            controller.setZoom(15.0)
-            // The map lives inside a scrolling page: keep gestures on the map while touched.
+        // Texture mode: the map composites like a normal view, so it clips to rounded
+        // corners and moves correctly inside scrolling / sliding Compose content.
+        val options = MapLibreMapOptions.createFromAttributes(context)
+            .textureMode(true)
+            .logoEnabled(false)
+            .compassEnabled(false)
+            .rotateGesturesEnabled(false)
+            .tiltGesturesEnabled(false)
+            .attributionGravity(Gravity.BOTTOM or Gravity.START)
+        MapView(context, options).apply {
+            onCreate(null)
+            // Keep pan/zoom gestures on the map while the page around it scrolls.
             setOnTouchListener { v, e ->
                 if (e.action == MotionEvent.ACTION_DOWN) v.parent?.requestDisallowInterceptTouchEvent(true)
                 false
             }
+            getMapAsync { map = it }
         }
     }
 
     DisposableEffect(lifecycle) {
         val obs = LifecycleEventObserver { _, ev ->
             when (ev) {
+                Lifecycle.Event.ON_START -> mapView.onStart()
                 Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
                 else -> Unit
             }
         }
-        lifecycle.addObserver(obs)
+        lifecycle.addObserver(obs)  // replays START/RESUME if already resumed
         onDispose {
             lifecycle.removeObserver(obs)
-            mapView.onDetach()
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) mapView.onPause()
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) mapView.onStop()
+            mapView.onDestroy()
         }
     }
 
-    Box(modifier) {
-        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize()) { map ->
-            // Dark themes: invert tiles for a night map.
-            map.overlayManager.tilesOverlay.setColorFilter(if (th.isLight) null else TilesOverlay.INVERT_COLORS)
+    // (Re)load the style when the map is ready or the theme changes.
+    val styleUrl = if (th.isLight) STYLE_LIGHT else STYLE_DARK
+    DisposableEffect(map, styleUrl, th.name) {
+        val m = map
+        if (m != null) {
+            loadedStyle = null
+            m.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
+                addOverlayLayers(style, th)
+                state.reset()
+                loadedStyle = style
+            }
+        }
+        onDispose { }
+    }
 
-            val pathKey = path.size to path.lastOrNull()
-            if (pathKey != holder.pathKey || th != holder.theme) {
-                holder.pathKey = pathKey
-                holder.theme = th
-                map.overlays.removeAll { it is Polyline || (it is Marker && it.id != POSITION_ID) }
-                addSpeedColouredRoute(map, path)
-                if (showEndpoints && path.size >= 2) {
-                    map.overlays += pin(map, path.first(), th.accent.toColor().toArgb(), th, "Start")
-                    map.overlays += pin(map, path.last(), th.textMain.toColor().toArgb(), th, "End")
-                }
-                if (!followPosition && path.size >= 2) {
-                    val box = BoundingBox.fromGeoPoints(path.map { GeoPoint(it.lat, it.lon) })
-                    map.post { map.zoomToBoundingBox(box.increaseByScale(1.25f), false) }
+    AndroidView(factory = { mapView }, modifier = modifier) {
+        val m = map ?: return@AndroidView
+        val style = loadedStyle ?: return@AndroidView
+        state.render(m, mapView, style, path, position, followPosition, showEndpoints)
+    }
+}
+
+/** Remembers what is already drawn so each update only touches what changed. */
+private class RenderState {
+    private var pathKey: Any? = null
+    private var hasCamera = false
+
+    fun reset() {
+        pathKey = null
+        hasCamera = false
+    }
+
+    fun render(
+        m: MapLibreMap, view: MapView, style: Style, path: List<MapPoint>, position: MapPoint?,
+        follow: Boolean, endpoints: Boolean,
+    ) {
+        val key = Triple(path.size, path.firstOrNull(), path.lastOrNull())
+        if (key != pathKey) {
+            pathKey = key
+            style.getSourceAs<GeoJsonSource>(SRC_ROUTE)?.setGeoJson(routeFeatures(path))
+            style.getSourceAs<GeoJsonSource>(SRC_PINS)?.setGeoJson(
+                if (endpoints && path.size >= 2) FeatureCollection.fromFeatures(listOf(
+                    pinFeature(path.first(), "sr-pin-start"),
+                    pinFeature(path.last(), "sr-pin-end"),
+                )) else FeatureCollection.fromFeatures(emptyList()),
+            )
+            if (!follow && path.size >= 2) {
+                val pts = path.map { LatLng(it.lat, it.lon) }.distinct()
+                if (pts.size >= 2) {
+                    val bounds = LatLngBounds.Builder().includes(pts).build()
+                    val pad = (36 * view.resources.displayMetrics.density).toInt()
+                    view.post { m.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, pad)) }
+                    hasCamera = true
                 }
             }
+        }
 
-            val marker = holder.position
-            if (position != null) {
-                val gp = GeoPoint(position.lat, position.lon)
-                if (marker == null) {
-                    holder.position = Marker(map).apply {
-                        id = POSITION_ID
-                        icon = positionIcon(th).toDrawable(map.resources)
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        this.position = gp
-                        title = "Now"
-                    }.also { map.overlays += it }
-                } else {
-                    marker.position = gp
-                    map.overlays.remove(marker); map.overlays += marker  // keep on top
-                }
-                if (followPosition) map.controller.animateTo(gp)
-            } else if (marker != null) {
-                map.overlays.remove(marker)
-                holder.position = null
+        style.getSourceAs<GeoJsonSource>(SRC_POS)?.setGeoJson(
+            if (position == null) FeatureCollection.fromFeatures(emptyList())
+            else FeatureCollection.fromFeature(Feature.fromGeometry(Point.fromLngLat(position.lon, position.lat))),
+        )
+        if (position != null) {
+            val ll = LatLng(position.lat, position.lon)
+            when {
+                !hasCamera -> { m.moveCamera(CameraUpdateFactory.newLatLngZoom(ll, 15.5)); hasCamera = true }
+                follow -> m.easeCamera(CameraUpdateFactory.newLatLng(ll), 800)
             }
-            map.invalidate()
         }
     }
 }
 
-private const val POSITION_ID = "position"
+private fun addOverlayLayers(style: Style, th: AppTheme) {
+    style.addImage("sr-pin-start", pinIcon(th.accent.toColor().toArgb(), th.panel.toColor().toArgb()))
+    style.addImage("sr-pin-end", pinIcon(th.textMain.toColor().toArgb(), th.panel.toColor().toArgb()))
+    style.addImage("sr-pos", positionIcon(th))
 
-private class MapHolder {
-    var pathKey: Any? = null
-    var theme: AppTheme? = null
-    var position: Marker? = null
+    style.addSource(GeoJsonSource(SRC_ROUTE))
+    style.addSource(GeoJsonSource(SRC_PINS))
+    style.addSource(GeoJsonSource(SRC_POS))
+
+    val casing = if (th.isLight) "#FFFFFF" else "#101010"
+    style.addLayer(LineLayer("sr-route-casing", SRC_ROUTE).withProperties(
+        PropertyFactory.lineColor(casing), PropertyFactory.lineWidth(8f),
+        PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+    ))
+    style.addLayer(LineLayer("sr-route", SRC_ROUTE).withProperties(
+        PropertyFactory.lineColor(Expression.get("color")), PropertyFactory.lineWidth(5f),
+        PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+    ))
+    style.addLayer(SymbolLayer("sr-pins", SRC_PINS).withProperties(
+        PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+        PropertyFactory.iconAllowOverlap(true), PropertyFactory.iconIgnorePlacement(true),
+    ))
+    style.addLayer(SymbolLayer("sr-pos", SRC_POS).withProperties(
+        PropertyFactory.iconImage("sr-pos"), PropertyFactory.iconAllowOverlap(true), PropertyFactory.iconIgnorePlacement(true),
+    ))
 }
 
-/** One polyline per run of equal speed band, so colour changes along the route. */
-private fun addSpeedColouredRoute(map: MapView, path: List<MapPoint>) {
-    if (path.size < 2) return
-    var run = mutableListOf(GeoPoint(path[0].lat, path[0].lon))
-    var runColor = speedColor(path[0].speedKmh)
+/** One LineString per run of equal speed band, each carrying its colour. */
+private fun routeFeatures(path: List<MapPoint>): FeatureCollection {
+    if (path.size < 2) return FeatureCollection.fromFeatures(emptyList())
+    val features = ArrayList<Feature>()
+    var run = arrayListOf(Point.fromLngLat(path[0].lon, path[0].lat))
+    var color = speedColor(path[0].speedKmh)
     fun flush() {
         if (run.size < 2) return
-        map.overlays += Polyline(map).apply {
-            setPoints(run)
-            outlinePaint.color = runColor.toArgb()
-            outlinePaint.strokeWidth = 10f
-            outlinePaint.strokeCap = Paint.Cap.ROUND
-            outlinePaint.isAntiAlias = true
-            infoWindow = null
+        features += Feature.fromGeometry(LineString.fromLngLats(run)).apply {
+            addStringProperty("color", "#%06X".format(color.toArgb() and 0xFFFFFF))
         }
     }
     for (i in 1 until path.size) {
         val c = speedColor(path[i - 1].speedKmh)
-        val gp = GeoPoint(path[i].lat, path[i].lon)
-        if (c == runColor) {
-            run += gp
-        } else {
+        val p = Point.fromLngLat(path[i].lon, path[i].lat)
+        if (c == color) run += p
+        else {
             flush()
-            run = mutableListOf(GeoPoint(path[i - 1].lat, path[i - 1].lon), gp)
-            runColor = c
+            run = arrayListOf(Point.fromLngLat(path[i - 1].lon, path[i - 1].lat), p)
+            color = c
         }
     }
     flush()
+    return FeatureCollection.fromFeatures(features)
 }
 
-private fun pin(map: MapView, p: MapPoint, color: Int, th: AppTheme, label: String) = Marker(map).apply {
-    position = GeoPoint(p.lat, p.lon)
-    icon = pinIcon(color, th.panel.toColor().toArgb()).toDrawable(map.resources)
-    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-    title = label
-}
+private fun pinFeature(p: MapPoint, icon: String) =
+    Feature.fromGeometry(Point.fromLngLat(p.lon, p.lat)).apply { addStringProperty("icon", icon) }
 
 private fun pinIcon(outer: Int, inner: Int): Bitmap {
     val w = 72

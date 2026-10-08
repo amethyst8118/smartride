@@ -1,10 +1,6 @@
 package com.smartride.app.data
 
 import android.content.Context
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
  * STUB ride-log source: produces realistic rides without any hardware, so the
@@ -47,7 +43,7 @@ class DemoRideLogSource(
         val a = (route.size * p.from).toInt()
         val b = (route.size * p.to).toInt().coerceAtMost(route.size)
         val pts = route.subList(a, b).let { if (p.reversed) it.reversed() else it }
-        val dist = pts.zipWithNext { x, y -> haversineM(x, y) }.sum()
+        val dist = pts.zipWithNext { x, y -> Geo.distanceM(x, y) }.sum()
         val moving = pts.map { it.speedKmh }.filter { it > 1 }
         val avg = if (moving.isEmpty()) 0.0 else moving.average()
         val dur = if (avg > 0) (dist / (avg / 3.6)).toLong() else 0L
@@ -65,15 +61,4 @@ class DemoRideLogSource(
     override suspend fun fetch(summary: RemoteRideSummary): RemoteRideLog = build(summary.remoteId - 1)
 
     override suspend fun acknowledge(summary: RemoteRideSummary) = Unit
-
-    companion object {
-        fun haversineM(a: RoutePoint, b: RoutePoint): Double {
-            val r = 6_371_000.0
-            val dLat = Math.toRadians(b.lat - a.lat)
-            val dLon = Math.toRadians(b.lon - a.lon)
-            val h = sin(dLat / 2).let { it * it } +
-                cos(Math.toRadians(a.lat)) * cos(Math.toRadians(b.lat)) * sin(dLon / 2).let { it * it }
-            return 2 * r * atan2(sqrt(h), sqrt(1 - h))
-        }
-    }
 }

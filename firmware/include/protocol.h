@@ -44,7 +44,7 @@ struct __attribute__((packed)) LivePacket {
     uint8_t  sats;          // satellites in use
     uint8_t  batteryPct;    // 0..100, BATTERY_UNKNOWN if not measured
     uint16_t speed;         // 0.01 km/h
-    uint16_t reserved;
+    uint16_t batteryMv;     // unit battery voltage in mV, 0 = not measured
     uint32_t rideDistanceM; // metres in the current ride
     uint32_t rideDurationS; // seconds in the current ride
     int32_t  lat;           // 1e-7 deg

@@ -42,6 +42,18 @@ private:
     Lcg      rng_{0x5EED1234};
 };
 
+// STUB battery: a cell discharging slowly (faster while riding). Replaced by the
+// ADC reading once cfg::BATTERY_ADC_PIN is wired to the cell through a divider.
+class SimBattery {
+public:
+    uint16_t millivolts(uint32_t tMs, bool riding);
+
+private:
+    float    mv_ = 4080.f;   // ~85 %
+    uint32_t lastMs_ = 0;
+    Lcg      rng_{0xBA77};
+};
+
 class SimImu {
 public:
     enum class Scenario : uint8_t { Riding, Pothole, Crash, Recovering };

@@ -18,13 +18,15 @@
 namespace cfg {
 
 // ---- Ride statistics -------------------------------------------------------
-constexpr double EARTH_RADIUS_M      = 6371000.0;  // (report) mean Earth radius
-constexpr float  V_MAX_KMH           = 160.0f;     // (report) plausibility gate d/dt <= v_max
+constexpr float  V_MAX_KMH           = 160.0f;     // plausibility gate d/dt <= v_max
 constexpr float  STATIONARY_STEP_M   = 2.0f;       // ignore position jitter below this...
 constexpr float  STATIONARY_KMH      = 3.0f;       // ...when GNSS speed is also below this
-constexpr float  ROUTE_POINT_STEP_M  = 25.0f;      // decimation of stored route points
-constexpr uint32_t ROUTE_POINT_MAX_GAP_MS = 15000; // ...or at least one point every 15 s
-constexpr uint16_t ROUTE_POINTS_MAX  = 600;
+// Route storage (RouteSimplifier): drop fixes that lie within tolerance of a straight line.
+constexpr float    ROUTE_TOLERANCE_M    = 4.0f;    // ~ GNSS CEP; sub-tolerance wiggles are noise
+constexpr float    ROUTE_SPEED_STEP_KMH = 8.0f;    // keep speed changes visible on the map
+constexpr float    ROUTE_MAX_GAP_M      = 250.0f;
+constexpr uint32_t ROUTE_MAX_GAP_MS     = 30000;
+constexpr uint16_t ROUTE_POINTS_MAX     = 1000;
 
 // ---- Crash rule (impact -> sustained tilt -> stillness) --------------------
 constexpr float    IMPACT_G          = 4.0f;    // (report) nominal, (tune)
@@ -44,6 +46,10 @@ constexpr uint32_t IMU_PERIOD_MS     = 10;      // 100 Hz motion samples
 constexpr uint8_t  LOG_CAPACITY      = 8;
 constexpr bool     ACK_DELETES_LOG   = true;
 constexpr uint32_t LOG_FRAME_GAP_MS  = 6;       // pacing between notifications
+
+// ---- Battery (single Li-ion cell behind the BMS) ----------------------------
+constexpr int      BATTERY_ADC_PIN   = -1;      // -1 = not wired yet -> simulated battery
+constexpr float    BATTERY_DIVIDER   = 2.0f;    // cell voltage = ADC voltage x divider
 
 // ---- Hardware --------------------------------------------------------------
 constexpr int      BOOT_BUTTON_PIN   = 0;       // BOOT button = simulate crash

@@ -11,6 +11,7 @@
 // Serial console (115200): h = help. BOOT button = simulate crash / cancel.
 #include <Arduino.h>
 
+#include "battery.h"
 #include "ble_service.h"
 #include "canned_rides.h"
 #include "config.h"
@@ -28,6 +29,7 @@ static TaskHandle_t      hBleTask;
 
 static SimGnss       gnss;
 static SimImu        imu;
+static SimBattery    simBattery;
 static CrashDetector detector;
 static RideSession   session;
 static LogStore      logs;
@@ -43,6 +45,17 @@ static volatile bool  gDetectorReset = false;  // set by ble_task, applied by cr
 static uint32_t gEpochBase = BUILD_EPOCH;
 static uint32_t gMillisBase = 0;
 static bool     gTimeSynced = false;
+
+// Unit battery: ADC through a divider when wired, otherwise simulated.
+// Smoothed so load transients (radio, GNSS) don't make the percentage jump.
+static float gBatteryMv = 0;
+static uint16_t readBatteryMv(bool riding) {
+    const float mv = cfg::BATTERY_ADC_PIN >= 0
+        ? analogReadMilliVolts(cfg::BATTERY_ADC_PIN) * cfg::BATTERY_DIVIDER
+        : simBattery.millivolts(millis(), riding);
+    gBatteryMv = gBatteryMv == 0 ? mv : gBatteryMv * 0.9f + mv * 0.1f;
+    return static_cast<uint16_t>(gBatteryMv);
+}
 
 struct Lock {
     Lock()  { xSemaphoreTake(gLock, portMAX_DELAY); }
@@ -358,7 +371,8 @@ static void bleTask(void*) {
                 if (gCrashPending) p.flags |= proto::LIVE_CRASH_PENDING;
                 if (gTimeSynced) p.flags |= proto::LIVE_TIME_SYNCED;
                 p.sats = gLastFix.sats;
-                p.batteryPct = proto::BATTERY_UNKNOWN;
+                p.batteryMv = readBatteryMv(session.active());
+                p.batteryPct = battery::socFromMillivolts(p.batteryMv);
                 p.speed = static_cast<uint16_t>(gLastFix.valid ? gLastFix.speedKmh * proto::SPEED_SCALE : 0);
                 p.rideDistanceM = session.active() ? static_cast<uint32_t>(st.distanceM()) : 0;
                 p.rideDurationS = session.active() ? st.durationS() : 0;
@@ -384,6 +398,8 @@ static void printInfo() {
     Serial.printf("\nSmartRide OBU %s on %s | BLE %s (%s, MTU %u) | clock %lu (%s)\n", FW_VERSION, SMARTRIDE_BOARD,
                   ble::deviceName(), ble::connected() ? "connected" : "advertising", ble::mtu(),
                   (unsigned long)nowEpoch(), gTimeSynced ? "synced" : "build time");
+    Serial.printf("battery: %u mV (%u %%%s)\n", (unsigned)gBatteryMv, battery::socFromMillivolts(gBatteryMv),
+                  cfg::BATTERY_ADC_PIN >= 0 ? "" : ", simulated");
     Serial.printf("ride: %s  route idx %u  crash state %u  imu overruns %lu  free heap %lu\n",
                   session.active() ? "ACTIVE" : "idle", gnss.index(), (unsigned)detector.state(),
                   (unsigned long)gImuOverruns, (unsigned long)ESP.getFreeHeap());

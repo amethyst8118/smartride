@@ -57,7 +57,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.osmdroid.android)
+    implementation(libs.maplibre.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

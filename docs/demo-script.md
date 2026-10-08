@@ -16,11 +16,12 @@ Open the repo README → architecture diagram → `docs/progress.md`.
 
 ## 2. Firmware on the unit (1 min)
 Point at the serial log while it runs:
-- `[RIDE] 1.23 km  00:04:12  32.5 km/h …` — the Haversine distance from report equations 1–4,
-  computed on the microcontroller (`lib/core/src/ride_stats.cpp`).
+- `[RIDE] 1.23 km  00:04:12  32.5 km/h …` — distance computed on the microcontroller with an
+  ellipsoidal (WGS-84) formula that is more accurate than Haversine and runs on the chip's float FPU
+  (`lib/core/src/geo.cpp`, checked against an exact geodesic in the unit tests).
 - Wait for `[GNSS] REJECTED outlier: 445 m jump in 1 s` (one every ~97 s) — the plausibility
   gate protecting the odometer.
-- Mention: 14 unit tests run *on the board* (`pio test`).
+- Mention: the core logic is unit-tested *on the board* (`pio test`).
 
 ## 3. Live link to the phone (1 min)
 Open the app. It connects by itself (green badge, LED goes solid green).
